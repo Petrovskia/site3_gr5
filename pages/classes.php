@@ -221,6 +221,7 @@ class Item {
 
     static function SMTP($id_result) {
         require_once ("PHPMailer/PHPMailerAutoload.php");
+        require_once ("private/private_data.php");
 
         $mail = new PHPMailer;
         // настройка протокола SMTP(протокол передачи данных почтовых сообщений)
@@ -230,11 +231,66 @@ class Item {
         // аутентификация
         $mail->SMTPAuth = true;
         $mail->Host = 'smtp.gmail.com';
-        $mail->Port = 465;
+        $mail->Port = 25;
         $mail->Username=MAIL;
         $mail->Password=PASS;
 
+        // от кого
+        $mail->setFrom('petrovski_a@itstep.org', 'Shop Orcs and Dragons');
 
+        // кому
+        $mail->addAddress('petrovski_a@itstep.org', 'From site SOaD');
 
+        // тема письма
+        $mail->Subject = 'Новый заказ на сайте Shop Orcs and Dragons';
+
+        // тело письма
+        $body = "<table cellspacing='0' cellpadding='0' border='2' width='800' style='background-color: green !important;'>";
+        $arr_items = [];
+        $i = 0;
+        foreach ($id_result as $id) {
+            $item = self::fromDb($id);
+            array_push($arr_items, $item->itemname, $item->pricesale, $item->info); // для csv файла
+            $mail->AddEmbeddedImage($item->imagepath, 'item'.++$i);
+            $body .= "<tr>
+                      <th>$item->itemname</th>
+                      <td>$item->pricesale</td>
+                      <td>$item->info</td>
+                      <td><img src='cid:item{$i}' alt='item' height='100'></td>
+                      </tr>";
+        }
+        $body .= '</table>';
+
+        $mail->msgHTML($body);
+        try {
+            $mail->send();
+        } catch (phpmailerException $e) {
+            echo $e->getMessage();
+        }
+
+        // вызов и создание .csv файла
+        try {
+            $csv = new CSV('private/excel_file.csv');
+            $csv->setCSV($arr_items);
+        } catch (Exception $e) {
+            echo $e->getMessage();
+        }
+    }
+}
+
+class CSV {
+    private $csv_file = null;
+
+    public function __construct($csv_file)
+    {
+        $this->csv_file = $csv_file;
+    }
+
+    function setCSV($arr_item) {
+        $file = fopen($this->csv_file, 'w+');
+        foreach ($arr_item as $item) {
+            fputcsv($file, [$item], ';');
+        }
+        fclose($file);
     }
 }
